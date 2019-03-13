@@ -1,0 +1,4 @@
+{"type": "shutdown", }
+{"type": "store", "key": "key", "value": "data", }
+{"type": "input", "switch": "ModuleName", "data": "up/down/left/right/data", }
+{"type": "anthing", "target": "ModuleName", "data": "data", }
