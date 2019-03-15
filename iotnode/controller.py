@@ -1,13 +1,13 @@
 import threading
 import logging
-import Queue
+import queue
 import time
 
 
 class Controller:
     modules = {}
     event_handlers = {}
-    mbus = Queue.Queue()
+    mbus = queue.Queue()
     stop = threading.Event()
 
     # The local database stores key value pairs
@@ -31,7 +31,7 @@ class Controller:
         """Load a module class object and start the worker as a thread"""
         ref = module[0]
         self.modules[ref] = {}
-        self.modules[ref]["queue"] = Queue.Queue()
+        self.modules[ref]["queue"] = queue.Queue()
         self.modules[ref]["active"] = threading.Event()
         self.modules[ref]["object"] = getattr(
             __import__("nodemodules." + module[1],
