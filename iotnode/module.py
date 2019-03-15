@@ -47,6 +47,9 @@ class NodeModule(object):
         else:
             self.processMessage(data)
 
+    def add_to_menu(self, title):
+        self.push({'type': 'menu_add', 'title': title})
+
     def store(self, key, value):
         data = {"type": "store", "key": key, "value": value}
         self.__mbus.put(data)
@@ -59,15 +62,25 @@ class NodeModule(object):
     def push(self, data):
         if "type" not in data:
             data = {"type": "unspecified", "data": data, }
+        data['_source'] = self.id
         self.__mbus.put(data)
 
     def pushToModule(self, name, data):
         data["target"] = name
         self.__send(data)
 
-    def wait(self):
+    def wait(self, wait=None):
         if self.__queue.empty():
-            time.sleep(0.1)
+            if wait:
+                time.sleep(wait)
+            else:
+                if self.active:
+                    if callable(getattr(self, "draw", None)):
+                        self.draw()
+                    time.sleep(0.2)
+                else:
+                    self.__processQueue(self.__queue.get(True))
+                    self.__queue.task_done()
 
     def tick(self):
         self.wait()

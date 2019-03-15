@@ -14,18 +14,16 @@ class Controller:
     cache = {}
 
     def __init__(self, modules=None):
-        """Form a complex number.
-
-        Keyword arguments:
-        modules -- list of tuples containing class name and file
-        """
-
         logging.basicConfig(
             level=logging.DEBUG,
             format='%(asctime)s %(threadName)s %(message)s')
 
         for module in modules:
-            self.__add_module(module)
+            try:
+                self.__add_module(module)
+            except Exception as e:
+                logging.error(
+                    "Error loading module: " + str(module[0]) + " - " + str(e))
 
     def __add_module(self, module):
         """Load a module class object and start the worker as a thread"""
@@ -61,6 +59,9 @@ class Controller:
                 time.sleep(5)
 
     def __processMBus(self, data):
+        if data["type"] != "render_data":
+            logging.debug("MBUS: " + str(data))
+
         if "type" not in data:
             logging.error("Invalid message passed to bus: " + str(data))
             return
@@ -125,15 +126,18 @@ class Controller:
         self.__sendAll({"type": "__cache", "data": self.cache})
 
     def __handleInput(self, data):
+        if "__target" not in self.cache:
+            self.cache["__target"] = None
         if "switch" in data:
             if data["switch"] in self.modules:
-                self.modules[self.cache["__target"]]["active"].clear()
+                if self.cache["__target"]:
+                    self.modules[self.cache["__target"]]["active"].clear()
                 self.cache["__target"] = data["switch"]
                 self.modules[self.cache["__target"]]["active"].set()
             else:
                 logging.error("Invalid target for input switch: " + str(data))
 
-        if "__target" in self.cache:
+        if self.cache["__target"]:
             self.modules[self.cache["__target"]]["queue"].put(data)
         else:
             logging.debug("No target for input: " + str(data))
