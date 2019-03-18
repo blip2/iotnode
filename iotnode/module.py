@@ -27,7 +27,8 @@ class NodeModule(object):
                 if not self.__queue.empty():
                     self.__processQueue(self.__queue.get())
                     self.__queue.task_done()
-                self.tick()
+                else:
+                    self.tick()
             except Exception as e:
                 logging.exception("Exception in worker")
                 time.sleep(5)
@@ -74,18 +75,16 @@ class NodeModule(object):
         self.__send(data)
 
     def wait(self, wait=None):
-        if self.__queue.empty():
-            if self.active:
-                if callable(getattr(self, "draw", None)):
-                    self.draw()
-            if wait:
-                time.sleep(wait)
-            else:
-                if self.active:
-                    time.sleep(0.2)
-                else:
-                    self.__processQueue(self.__queue.get(True))
-                    self.__queue.task_done()
+        if self.active:
+            if callable(getattr(self, "draw", None)):
+                self.draw()
+        if wait:
+            time.sleep(wait)
+        elif self.active:
+            time.sleep(0.2)
+        else:
+            self.__processQueue(self.__queue.get(True))
+            self.__queue.task_done()
 
     def tick(self):
         self.wait()

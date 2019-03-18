@@ -5,7 +5,7 @@ with open("readme.md", "r") as fh:
 
 setuptools.setup(
     name="iotnode",
-    version="0.0.4",
+    version="0.0.6",
     author="Ben Hussey",
     author_email="ben@blip2.net",
     description="Framework for running embedded code with multiple modular sources of data input/output",
