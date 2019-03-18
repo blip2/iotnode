@@ -59,7 +59,7 @@ class Controller:
                 time.sleep(5)
 
     def __processMBus(self, data):
-        if data["type"] != "render_data":
+        if "render_" not in data["type"]:
             logging.debug("MBUS: " + str(data))
 
         if "type" not in data:

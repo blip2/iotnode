@@ -75,12 +75,13 @@ class NodeModule(object):
 
     def wait(self, wait=None):
         if self.__queue.empty():
+            if self.active:
+                if callable(getattr(self, "draw", None)):
+                    self.draw()
             if wait:
                 time.sleep(wait)
             else:
                 if self.active:
-                    if callable(getattr(self, "draw", None)):
-                        self.draw()
                     time.sleep(0.2)
                 else:
                     self.__processQueue(self.__queue.get(True))
