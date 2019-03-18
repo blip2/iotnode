@@ -18,9 +18,9 @@ class NodeModule(object):
         while True:
             if self.__stop.is_set():
                 break
-            if self.__active.is_set():
+            if self.__active.is_set() and not self.active:
                 self.active = True
-            else:
+            elif self.active:
                 self.active = False
             try:
                 if not self.__queue.empty():
@@ -28,7 +28,7 @@ class NodeModule(object):
                     self.__queue.task_done()
                 self.tick()
             except Exception as e:
-                logging.error("Exception: " + str(e))
+                logging.exception("Exception in worker")
                 time.sleep(5)
 
     def __processQueue(self, data):

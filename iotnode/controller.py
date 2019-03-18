@@ -22,8 +22,8 @@ class Controller:
             try:
                 self.__add_module(module)
             except Exception as e:
-                logging.error(
-                    "Error loading module: " + str(module[0]) + " - " + str(e))
+                logging.exception(
+                    "Error loading module: " + str(module[0]))
 
     def __add_module(self, module):
         """Load a module class object and start the worker as a thread"""
@@ -55,7 +55,7 @@ class Controller:
                 else:
                     time.sleep(0.01)
             except Exception as e:
-                logging.error("Exception: " + str(e))
+                logging.exception("Exception in main worker")
                 time.sleep(5)
 
     def __processMBus(self, data):
