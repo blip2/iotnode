@@ -17,6 +17,7 @@ class NodeModule(object):
     def worker(self):
         while True:
             if self.__stop.is_set():
+                self.cleanup()
                 break
             if self.__active.is_set() and not self.active:
                 self.active = True
@@ -30,6 +31,9 @@ class NodeModule(object):
             except Exception as e:
                 logging.exception("Exception in worker")
                 time.sleep(5)
+
+    def cleanup(self):
+        pass
 
     def __processQueue(self, data):
 
