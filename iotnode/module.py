@@ -9,9 +9,10 @@ class NodeModule(object):
         """Create the module, receives the message bus and queue"""
         self.id = self.__class__.__name__
         self.__mbus = mbus
-        self.__queue = queue
+        self.queue = queue
         self.__active = active
         self.__stop = stop
+        self.__changed = True
         self.cache = cache
 
     def worker(self):
@@ -21,12 +22,12 @@ class NodeModule(object):
                 break
             if self.__active.is_set() and not self.active:
                 self.active = True
-            elif self.active:
+                self.__changed = True
+            elif self.active and not self.__active.is_set():
                 self.active = False
             try:
-                if not self.__queue.empty():
-                    self.__processQueue(self.__queue.get())
-                    self.__queue.task_done()
+                if not self.queue.empty():
+                    self.processQueue(self.queue.get())
                 else:
                     self.tick()
             except Exception as e:
@@ -36,7 +37,7 @@ class NodeModule(object):
     def cleanup(self):
         pass
 
-    def __processQueue(self, data):
+    def processQueue(self, data):
 
         callback = getattr(self, "callback_" + data["type"], None)
 
@@ -54,6 +55,9 @@ class NodeModule(object):
 
     def add_to_menu(self, title):
         self.push({'type': 'menu_add', 'title': title})
+
+    def update(self):
+        self.__changed = True
 
     def store(self, key, value):
         data = {"type": "store", "key": key, "value": value}
@@ -75,16 +79,16 @@ class NodeModule(object):
         self.__send(data)
 
     def wait(self, wait=None):
-        if self.active:
+        if self.active and self.__changed:
             if callable(getattr(self, "draw", None)):
+                self.__changed = False
                 self.draw()
         if wait:
             time.sleep(wait)
         elif self.active:
             time.sleep(0.2)
         else:
-            self.__processQueue(self.__queue.get(True))
-            self.__queue.task_done()
+            self.processQueue(self.queue.get(True))
 
     def tick(self):
         self.wait()

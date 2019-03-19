@@ -1,14 +1,13 @@
-import threading
+from multiprocessing import Event, Process, Queue
 import logging
-import queue
 import time
 
 
 class Controller:
     modules = {}
     event_handlers = {}
-    mbus = queue.Queue()
-    stop = threading.Event()
+    mbus = Queue()
+    stop = Event()
 
     # The local database stores key value pairs
     cache = {}
@@ -29,8 +28,8 @@ class Controller:
         """Load a module class object and start the worker as a thread"""
         ref = module[0]
         self.modules[ref] = {}
-        self.modules[ref]["queue"] = queue.Queue()
-        self.modules[ref]["active"] = threading.Event()
+        self.modules[ref]["queue"] = Queue()
+        self.modules[ref]["active"] = Event()
         self.modules[ref]["object"] = getattr(
             __import__("nodemodules." + module[1],
                        fromlist=[ref]), ref)(
@@ -39,7 +38,7 @@ class Controller:
                            self.modules[ref]["active"],
                            self.stop,
                            self.cache,)
-        self.modules[ref]["thread"] = threading.Thread(
+        self.modules[ref]["thread"] = Process(
             target=self.modules[ref]["object"].worker, name=ref)
         self.modules[ref]["thread"].start()
         logging.info("Started " + ref)
@@ -49,18 +48,13 @@ class Controller:
             if self.stop.is_set():
                 break
             try:
-                if not self.mbus.empty():
-                    self.__processMBus(self.mbus.get())
-                    self.mbus.task_done()
-                else:
-                    time.sleep(0.01)
+                self.__processMBus(self.mbus.get(True))
             except Exception as e:
                 logging.exception("Exception in main worker")
                 time.sleep(5)
 
     def __processMBus(self, data):
-        if "render_" not in data["type"]:
-            logging.debug("MBUS: " + str(data))
+        logging.debug("MBUS: " + str(data))
 
         if "type" not in data:
             logging.error("Invalid message passed to bus: " + str(data))
@@ -97,7 +91,7 @@ class Controller:
             self.modules[m]["queue"].put(data)
 
     def start(self):
-        thread = threading.Thread(target=self.__worker, name="Controller")
+        thread = Process(target=self.__worker, name="Controller")
         thread.start()
         try:
             while True:
