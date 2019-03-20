@@ -1,4 +1,4 @@
-from multiprocessing import Event, Process, Queue
+from multiprocessing import Process, Queue, Value
 import logging
 import time
 
@@ -7,7 +7,7 @@ class Controller:
     modules = {}
     event_handlers = {}
     mbus = Queue()
-    stop = Event()
+    stop = Value('u', 'R')
 
     # The local database stores key value pairs
     cache = {}
@@ -15,45 +15,47 @@ class Controller:
     def __init__(self, modules=None):
         logging.basicConfig(
             level=logging.DEBUG,
-            format='%(asctime)s %(threadName)s %(message)s')
+            format='%(asctime)s %(processName)s %(message)s')
 
         for module in modules:
             try:
-                self.__add_module(module)
+                self.add_module(module)
             except Exception as e:
+                del self.modules[module[0]]
                 logging.exception(
                     "Error loading module: " + str(module[0]))
 
-    def __add_module(self, module):
-        """Load a module class object and start the worker as a thread"""
+    def add_module(self, module):
+        """Load a module class object and start the worker as a process"""
         ref = module[0]
         self.modules[ref] = {}
         self.modules[ref]["queue"] = Queue()
-        self.modules[ref]["active"] = Event()
+        self.modules[ref]["state"] = Value('u', 'R')
         self.modules[ref]["object"] = getattr(
             __import__("nodemodules." + module[1],
                        fromlist=[ref]), ref)(
                            self.mbus,
                            self.modules[ref]["queue"],
-                           self.modules[ref]["active"],
-                           self.stop,
+                           self.modules[ref]["state"],
                            self.cache,)
-        self.modules[ref]["thread"] = Process(
+        self.modules[ref]["callbacks"] = self.modules[ref]["object"].get_callbacks()
+        self.modules[ref]["process"] = Process(
             target=self.modules[ref]["object"].worker, name=ref)
-        self.modules[ref]["thread"].start()
+        self.modules[ref]["process"].daemon = True
+        self.modules[ref]["process"].start()
         logging.info("Started " + ref)
 
-    def __worker(self):
+    def worker(self):
         while True:
-            if self.stop.is_set():
-                break
             try:
-                self.__processMBus(self.mbus.get(True))
+                if self.stop.value == 'S':
+                    break
+                self.processMBus(self.mbus.get(True))
             except Exception as e:
                 logging.exception("Exception in main worker")
                 time.sleep(5)
 
-    def __processMBus(self, data):
+    def processMBus(self, data):
         logging.debug("MBUS: " + str(data))
 
         if "type" not in data:
@@ -69,13 +71,13 @@ class Controller:
             return
 
         if data["type"] == "shutdown":
-            self.__shutdown()
+            self.shutdown()
 
         elif data["type"] == "store":
-            self.__handleStore(data)
+            self.handleStore(data)
 
         elif data["type"] == "input":
-            self.__handleInput(data)
+            self.handleInput(data)
 
         elif "target" in data:
             if data["target"] in self.modules:
@@ -84,30 +86,28 @@ class Controller:
                 logging.error("Invalid module targeted: " + str(data))
 
         else:
-            self.__sendAll(data)
-
-    def __sendAll(self, data):
-        for m in self.modules:
-            self.modules[m]["queue"].put(data)
+            self.handleCallback(data)
 
     def start(self):
-        thread = Process(target=self.__worker, name="Controller")
-        thread.start()
+        process = Process(target=self.worker, name="Controller")
+        process.daemon = True
+        process.start()
         try:
             while True:
                 time.sleep(10)
         except KeyboardInterrupt:
-            self.__shutdown()
-        thread.join()
+            self.shutdown()
+        process.join()
 
-    def __shutdown(self):
-        self.stop.set()
-        self.__sendAll({"type": "shutdown", })
+    def shutdown(self):
+        for ref in self.modules:
+            self.modules[ref]["state"] = 'S'
         logging.warning("Shutting down")
         logging.shutdown()
+        self.stop.value = 'S'
         exit()
 
-    def __handleStore(self, data):
+    def handleStore(self, data):
         if "key" not in data or "value" not in data:
             logging.error("Set key/value for store operations: " + str(data))
             return
@@ -117,17 +117,23 @@ class Controller:
             return
 
         self.cache[data["key"]] = data["value"]
-        self.__sendAll({"type": "__cache", "data": self.cache})
+        self.sendAll({"type": "__cache", "data": self.cache})
 
-    def __handleInput(self, data):
+    def handleCallback(self, data):
+        for m in self.modules:
+            if data["type"] in self.modules[m]["callbacks"]:
+                self.modules[m]["queue"].put(data)
+
+    def handleInput(self, data):
         if "__target" not in self.cache:
             self.cache["__target"] = None
         if "switch" in data:
             if data["switch"] in self.modules:
-                if self.cache["__target"]:
-                    self.modules[self.cache["__target"]]["active"].clear()
+                target = self.cache.get("__target")
+                if target:
+                    self.modules[target]["state"].value = "R"
                 self.cache["__target"] = data["switch"]
-                self.modules[self.cache["__target"]]["active"].set()
+                self.modules[self.cache["__target"]]["state"].value = "A"
             else:
                 logging.error("Invalid target for input switch: " + str(data))
 
@@ -135,3 +141,7 @@ class Controller:
             self.modules[self.cache["__target"]]["queue"].put(data)
         else:
             logging.debug("No target for input: " + str(data))
+
+    def sendAll(self, data):
+        for m in self.modules:
+            self.modules[m]["queue"].put(data)

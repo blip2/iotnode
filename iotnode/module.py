@@ -2,30 +2,29 @@ import time
 import logging
 
 
-class NodeModule(object):
+class NodeModule:
     active = False
 
-    def __init__(self, mbus, queue, active, stop, cache):
+    def __init__(self, mbus, queue, state, cache):
         """Create the module, receives the message bus and queue"""
         self.id = self.__class__.__name__
-        self.__mbus = mbus
+        self.mbus = mbus
         self.queue = queue
-        self.__active = active
-        self.__stop = stop
-        self.__changed = True
+        self.state = state
+        self.changed = True
         self.cache = cache
 
     def worker(self):
         while True:
-            if self.__stop.is_set():
-                self.cleanup()
-                break
-            if self.__active.is_set() and not self.active:
-                self.active = True
-                self.__changed = True
-            elif self.active and not self.__active.is_set():
-                self.active = False
             try:
+                if self.state.value == 'S':
+                    self.cleanup()
+                    break
+                if self.state.value == 'A' and not self.active:
+                    self.active = True
+                    self.changed = True
+                elif self.active and self.state.value != 'A':
+                    self.active = False
                 if not self.queue.empty():
                     self.processQueue(self.queue.get())
                 else:
@@ -37,14 +36,19 @@ class NodeModule(object):
     def cleanup(self):
         pass
 
-    def processQueue(self, data):
+    def get_callbacks(self):
+        callbacks = []
+        names = dir(self)
+        for name in names:
+            if "callback_" in name:
+                if callable(getattr(self, name, None)):
+                    callbacks.append(name.replace("callback_", ""))
+        return callbacks
 
+    def processQueue(self, data):
         callback = getattr(self, "callback_" + data["type"], None)
 
-        if data["type"] == "shutdown":
-            exit()
-
-        elif data["type"] == "__icache":
+        if data["type"] == "__icache":
             self.cache = data["data"]
 
         elif callable(callback):
@@ -57,11 +61,11 @@ class NodeModule(object):
         self.push({'type': 'menu_add', 'title': title})
 
     def update(self):
-        self.__changed = True
+        self.changed = True
 
     def store(self, key, value):
         data = {"type": "store", "key": key, "value": value}
-        self.__mbus.put(data)
+        self.mbus.put(data)
 
     def get(self, key):
         if key in self.cache:
@@ -72,21 +76,21 @@ class NodeModule(object):
         if "type" not in data:
             data = {"type": "unspecified", "data": data, }
         data['_source'] = self.id
-        self.__mbus.put(data)
+        self.mbus.put(data)
 
     def pushToModule(self, name, data):
         data["target"] = name
-        self.__send(data)
+        self.send(data)
 
     def wait(self, wait=None):
-        if self.active and self.__changed:
+        if self.active and self.changed:
             if callable(getattr(self, "draw", None)):
-                self.__changed = False
+                self.changed = False
                 self.draw()
         if wait:
             time.sleep(wait)
         elif self.active:
-            time.sleep(0.2)
+            time.sleep(0.1)
         else:
             self.processQueue(self.queue.get(True))
 
