@@ -7,7 +7,7 @@ on:
 jobs:
   build-and-publish:
     name: Publish iotnode to PyPI
-    runs-on: ubuntu
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
       - name: Set up Python 3.9
