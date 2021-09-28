@@ -17,13 +17,13 @@ class NodeModule:
     def worker(self):
         while True:
             try:
-                if self.state.value == 'S':
+                if self.state == 'S':
                     self.cleanup()
                     break
-                if self.state.value == 'A' and not self.active:
+                if self.state == 'A' and not self.active:
                     self.active = True
                     self.changed = True
-                elif self.active and self.state.value != 'A':
+                elif self.active and self.state != 'A':
                     self.active = False
                 if not self.queue.empty():
                     self.processQueue(self.queue.get())

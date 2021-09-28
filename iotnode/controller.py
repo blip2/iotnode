@@ -1,4 +1,4 @@
-from multiprocessing import Process, Queue, Value
+import threading, queue
 import logging
 import time
 
@@ -6,8 +6,8 @@ import time
 class Controller:
     modules = {}
     event_handlers = {}
-    mbus = Queue()
-    stop = Value('u', 'R')
+    mbus = queue.Queue()
+    stop = 'R'
 
     # The local database stores key value pairs
     cache = {}
@@ -26,11 +26,11 @@ class Controller:
                     "Error loading module: " + str(module[0]))
 
     def add_module(self, module):
-        """Load a module class object and start the worker as a process"""
+        """Load a module class object and start the worker as a thread"""
         ref = module[0]
         self.modules[ref] = {}
-        self.modules[ref]["queue"] = Queue()
-        self.modules[ref]["state"] = Value('u', 'R')
+        self.modules[ref]["queue"] = queue.Queue()
+        self.modules[ref]["state"] = 'R'
         self.modules[ref]["object"] = getattr(
             __import__("nodemodules." + module[1],
                        fromlist=[ref]), ref)(
@@ -39,16 +39,16 @@ class Controller:
                            self.modules[ref]["state"],
                            self.cache,)
         self.modules[ref]["callbacks"] = self.modules[ref]["object"].get_callbacks()
-        self.modules[ref]["process"] = Process(
+        self.modules[ref]["thread"] = threading.Thread(
             target=self.modules[ref]["object"].worker, name=ref)
-        self.modules[ref]["process"].daemon = True
-        self.modules[ref]["process"].start()
+        self.modules[ref]["thread"].daemon = True
+        self.modules[ref]["thread"].start()
         logging.info("Started " + ref)
 
     def worker(self):
         while True:
             try:
-                if self.stop.value == 'S':
+                if self.stop == 'S':
                     break
                 self.processMBus(self.mbus.get(True))
             except Exception as e:
@@ -89,22 +89,22 @@ class Controller:
             self.handleCallback(data)
 
     def start(self):
-        process = Process(target=self.worker, name="Controller")
-        process.daemon = True
-        process.start()
+        thread = threading.Thread(target=self.worker, name="Controller")
+        thread.daemon = True
+        thread.start()
         try:
             while True:
-                time.sleep(10)
+                time.sleep(5)
         except KeyboardInterrupt:
             self.shutdown()
-        process.join()
+        thread.join()
 
     def shutdown(self):
         for ref in self.modules:
             self.modules[ref]["state"] = 'S'
         logging.warning("Shutting down")
         logging.shutdown()
-        self.stop.value = 'S'
+        self.stop = 'S'
         exit()
 
     def handleStore(self, data):
