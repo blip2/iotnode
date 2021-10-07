@@ -5,7 +5,7 @@ import logging
 class NodeModule:
     active = False
 
-    def __init__(self, mbus, queue, state, cache):
+    def __init__(self, mbus, queue, state, cache, data, data_lock):
         """Create the module, receives the message bus and queue"""
         self.id = self.__class__.__name__
         self.mbus = mbus
@@ -13,6 +13,8 @@ class NodeModule:
         self.state = state
         self.changed = True
         self.cache = cache
+        self.data = data
+        self.data_lock = data_lock
 
     def worker(self):
         while True:

@@ -5,6 +5,7 @@ This code provides a framework for running embedded code with multiple modular s
 ```pip install iotnode```
 
 ## Changes
+0.1.2 - Added data store with lock for sharing data between threads
 0.1.0 - Switched to using threading rather than multiprocessing
 
 ## Contributors

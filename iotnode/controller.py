@@ -9,8 +9,12 @@ class Controller:
     mbus = queue.Queue()
     stop = 'R'
 
-    # The local database stores key value pairs
+    # The local database stores key value pairs - static content
     cache = {}
+
+    # The local database - dynamic content
+    data = {}
+    data_lock = threading.Lock()
 
     def __init__(self, modules=None):
         logging.basicConfig(
@@ -37,7 +41,9 @@ class Controller:
                            self.mbus,
                            self.modules[ref]["queue"],
                            self.modules[ref]["state"],
-                           self.cache,)
+                           self.cache,
+                           self.data,
+                           self.data_lock)
         self.modules[ref]["callbacks"] = self.modules[ref]["object"].get_callbacks()
         self.modules[ref]["thread"] = threading.Thread(
             target=self.modules[ref]["object"].worker, name=ref)
